@@ -64,8 +64,3 @@ Provide:
         return response.content
     
     
-query ="how to treat Cancer patients above age of 60"
-
-res=RAGSearch()
-
-print(res.search_and_summarize(query))
