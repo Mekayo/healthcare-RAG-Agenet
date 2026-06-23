@@ -1,26 +1,58 @@
+import json
+from pathlib import Path
+from typing import List
+
 import requests
 from bs4 import BeautifulSoup
-from typing import List
 from langchain_core.documents import Document
-url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 
-def search_pubmed(query:str,max_results:int=100):
-    preams = {
-        "db":"pubmed",
-        "term":f"{query}",
-        "retmax":max_results,
-        "retmode":"json"
+
+# ==========================================================
+# CONFIG
+# ==========================================================
+
+PUBMED_SEARCH_URL = (
+    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+)
+
+PUBMED_FETCH_URL = (
+    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+)
+
+
+# ==========================================================
+# SEARCH
+# ==========================================================
+
+def search_pubmed(query: str, max_results: int = 200) -> List[str]:
+
+    params = {
+        "db": "pubmed",
+        "term": query,
+        "retmax": max_results,
+        "retmode": "json"
     }
-    response = requests.get(url, params=preams)
-    
-    data=response.json()
+
+    response = requests.get(
+        PUBMED_SEARCH_URL,
+        params=params,
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
     return data["esearchresult"]["idlist"]
 
+
+# ==========================================================
+# FETCH
+# ==========================================================
 
 def fetch_article_details(pmids: list[str]):
 
     ids = ",".join(pmids)
-    url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 
     params = {
         "db": "pubmed",
@@ -29,23 +61,29 @@ def fetch_article_details(pmids: list[str]):
     }
 
     response = requests.get(
-        url,
+        PUBMED_FETCH_URL,
         params=params,
         timeout=30
-        )
-    
-    response.raise_for_status()  # Raises exception for HTTP errors
+    )
 
-    soup = BeautifulSoup(response.content, "xml")
+    response.raise_for_status()
 
-    articles = soup.find_all("PubmedArticle")
+    soup = BeautifulSoup(
+        response.content,
+        "xml"
+    )
 
-    return articles
+    return soup.find_all("PubmedArticle")
 
-def parse_article(articles, query):
+
+# ==========================================================
+# PARSE
+# ==========================================================
+
+def parse_articles(articles, query: str ) -> list[Document]:
 
     docs = []
-
+    
     for article in articles:
 
         pmid_tag = article.find("PMID")
@@ -56,14 +94,16 @@ def parse_article(articles, query):
         title = title_tag.text if title_tag else ""
         abstract = abstract_tag.text if abstract_tag else ""
 
+        if not abstract:
+            continue
+
         docs.append(
             Document(
-                page_content=f"""
-                Title: {title}
-                Abstract: 
-                {abstract}
-                """,
-                metadata={
+            page_content=f"""
+        Title: {title}
+
+        Abstract:{abstract} """,    
+            metadata={
                     "pmid": pmid,
                     "title": title,
                     "query": query,
@@ -75,18 +115,57 @@ def parse_article(articles, query):
 
     return docs
 
-def load_pubmed_documents(query:str, max_results:int=100):
-    
+
+# ==========================================================
+# SAVE
+# ==========================================================
+
+def save_documents(docs: list[Document], filepath: str):
+
+    Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+
+    data = []
+
+    for doc in docs:
+
+        data.append(
+            {
+                "page_content": doc.page_content,
+                "metadata": doc.metadata
+            }
+        )
+
+    with open(filepath,"w",
+        encoding="utf-8" ) as f:
+
+        json.dump(
+            data,
+            f,
+            indent=4,
+            ensure_ascii=False
+        )
+
+    print(
+        f"Saved {len(data)} documents to {filepath}"
+    )
+
+
+# ==========================================================
+# ORCHESTRATOR
+# ==========================================================
+
+def load_pubmed_documents(query: str, max_results: int = 300):
+
     pmids = search_pubmed(
-        query,
-        max_results
+        query=query,
+        max_results=max_results
     )
 
     articles = fetch_article_details(
         pmids
     )
 
-    docs = parse_article(
+    docs = parse_articles(
         articles,
         query
     )
