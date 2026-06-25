@@ -69,25 +69,25 @@ class VectorStorePipeline:
 # =================================
 # testing
 # =================================
-docs = load_pubmed_documents(
-    query=" Lung Cancer treatment elderly",
-    max_results=200
-)
+# docs = load_pubmed_documents(
+#     query=" Lung Cancer treatment elderly",
+#     max_results=200
+# )
 
-pipeline = VectorStorePipeline()
+# pipeline = VectorStorePipeline()
 
-chunks = pipeline.chunk_documents(
-    docs
-)
+# chunks = pipeline.chunk_documents(
+#     docs
+# )
 
-pipeline.create_vector_store(
-    chunks
-)
+# pipeline.create_vector_store(
+#     chunks
+# )
 
-retriever = pipeline.get_retriever()
+# retriever = pipeline.get_retriever()
 
-results = retriever.invoke(
-    "latest treatments for Lung Cancer patients over 60"
-)
+# results = retriever.invoke(
+#     "latest treatments for Lung Cancer patients over 60"
+# )
 
-print(results[0].page_content)
+# print(results[0].page_content)
